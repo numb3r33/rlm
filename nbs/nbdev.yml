@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "rlm"
+  site-url: "https://numb3r33.github.io/rlm"
+  description: "Recursive LLM"
+  repo-branch: main
+  repo-url: "https://github.com/numb3r33/rlm"

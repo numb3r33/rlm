@@ -56,12 +56,135 @@ package manager specific guidelines on
 [conda](https://anaconda.org/numb3r33/rlm) and
 [pypi](https://pypi.org/project/rlm/) respectively.
 
-## How to use
+## Quick Start
 
-Fill me in please! Don’t forget code examples:
+Here’s a simple example of using RLM to answer questions over long
+documents:
 
-``` python
-1+1
-```
+export OPENAI_API_KEY=“your-key-here”
 
-    2
+### Basic Usage
+
+    from rlm.tools import prep_shell, make_run_repl 
+    from rlm.core import advanced_toolloop 
+    from rlm.prompts import REPL_SYSTEM_PROMPT
+
+### Your long document/context
+
+    with open("document.txt") as f: 
+        context = f.read()
+
+### Setup RLM
+
+    sh = prep_shell(context, model="openai/openai/gpt-oss-120b", base_url="https://your-litellm-gateway.com")
+    run_repl = make_run_repl(sh)
+
+### Ask a question
+
+query = “What are the main themes discussed in this document?”
+
+### Run RLM with verbose output
+
+    responses = advanced_toolloop( query, sp=REPL_SYSTEM_PROMPT, tools=[run_repl], sh=sh, model="openai/openai/gpt-oss-120b", base_url="https://your-litellm-gateway.com", max_steps=50, verbose=True)
+
+### Get the answer
+
+    for item in responses:
+        if isinstance(item, dict) and item.get("type") == "final":
+            print(f"Answer: {item['answer']}")
+
+### Vanialla approach ( may fail with very long context )
+
+    try:
+        vanilla_result = benchmark_vanilla(context, query, model="gpt-4", base_url="...")
+        print(f"Vanilla: {vanilla_result['time']:.2f}s, {vanilla_result['tokens']} tokens")
+    except Exception as e:
+        print(f"Vanilla failed: {e}")
+
+### RLM approach
+
+    rlm_result = benchmark_rlm(context, query, model="gpt-4", base_url="...", verbose=True)
+    print(f"RLM: {rlm_result['time']:.2f}s, {rlm_result['tokens']} tokens")
+    print(f"Answer: {rlm_result['answer']}")
+
+## FAQ
+
+### When should I use RLM vs vanilla LLM?
+
+**Use RLM when:** - Context exceeds model’s window (100k+ tokens) - You
+experience “context rot” (model gets worse with long conversations) -
+Task requires reasoning across many documents - You want adaptive,
+test-time chunking strategies
+
+**Use vanilla when:** - Context is short (\< 10k tokens) - Simple fact
+retrieval - Speed is critical and context fits easily
+
+### What’s the difference between `max_steps` and recursion depth?
+
+- **`max_steps`**: How many REPL iterations the root LM gets
+  (horizontal - loop count)
+- **Recursion depth**: How deep calls can nest (vertical - call stack
+  depth)
+
+RLM enforces depth=1 by design: root LM can call `llm_query()`, but
+those calls can’t spawn further recursion.
+
+### Why doesn’t the model always use FINAL()?
+
+Some models don’t consistently follow the FINAL() instruction. RLM
+includes a fallback that captures the last assistant message if FINAL()
+isn’t detected.
+
+### How does RLM compare to RAG?
+
+**RLM advantages:** - No pre-indexing needed - Adaptive search
+strategies (model decides how to explore) - Better for complex
+multi-step reasoning
+
+**RAG advantages:** - Faster for simple lookups - Works well with
+persistent knowledge bases - Lower cost per query for repeated queries
+
+### Can I customize the system prompt?
+
+Yes! Import and modify `REPL_SYSTEM_PROMPT` or create your own:
+
+    from rlm.prompts import REPL_SYSTEM_PROMPT
+
+    custom_prompt = REPL_SYSTEM_PROMPT + "\nAdditional instructions here..."
+
+## Future Directions
+
+Based on the [Recursive Language Models
+paper](https://alexzhang13.github.io/blog/2025/rlm/), here are planned
+enhancements:
+
+### Short-term
+
+- **Token/cost tracking**: Detailed metrics for each step
+- **Multiple benchmark tasks**: Expand beyond document Q&A
+- **Error recovery improvements**: Better handling of API failures and
+  malformed tool calls
+- **Configurable FINAL detection**: Custom patterns beyond FINAL() and
+  FINAL_VAR()
+
+### Medium-term
+
+- **Training for recursion**: Fine-tune models explicitly for RLM
+  patterns (like o1 for reasoning)
+- **Deeper recursion**: Support depth \> 1 for more complex tasks
+- **Multi-modal context**: Support for images, tables, structured data
+- **Streaming responses**: Real-time answer updates as RLM progresses
+
+### Long-term
+
+- **RL-based optimization**: Learn optimal chunking and recursion
+  strategies
+- **Hybrid RAG+RLM**: Combine pre-indexed retrieval with adaptive
+  exploration
+- **Benchmark suite**: Comprehensive evaluation across domains
+
+## Contributing
+
+We welcome contributions! Areas where help is needed: - Additional
+benchmark tasks - Prompt engineering for better FINAL() compliance -
+Performance optimizations - Documentation improvements
